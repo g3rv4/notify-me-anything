@@ -1,0 +1,4 @@
+redis==2.10.3
+selenium==2.47.1
+Unidecode==0.4.18
+requests==2.7.0
