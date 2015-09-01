@@ -9,8 +9,8 @@ import time
 class BROUEventRaiser(BaseEventRaiser):
     def __init__(self):
         self.messages = {
-            'open': ('Brou exchange started operations', 'New value: {new_value}', 'Old value: {old_value}', "NSUserNotificationDefaultSoundName"),
-            'closed': ('Brou exchange finished operations', 'New value: {new_value}', 'Old value: {old_value}', "NSUserNotificationDefaultSoundName")
+            'open': ('Brou exchange started operations', 'New value: {new_value_real} - {new_value}', 'Old value: {old_value_real} - {old_value}', "NSUserNotificationDefaultSoundName"),
+            'closed': ('Brou exchange finished operations', 'New value: {new_value_real} - {new_value}', 'Old value: {old_value_real} - {old_value}', "NSUserNotificationDefaultSoundName")
         }
 
     def __enter__(self):
@@ -30,38 +30,66 @@ class BROUEventRaiser(BaseEventRaiser):
         rates = self.get_current_rates()
 
         current_value = rates['Dolar e-Brou'][args.value_to_check]
+        current_value_real = rates['Dolar'][args.value_to_check]
         try:
             last_value = Decimal(redis_get('brou:value'))
         except:
             last_value = Decimal('0')
+        try:
+            last_value_real = Decimal(redis_get('brou:value_real'))
+        except:
+            last_value_real = Decimal('0')
 
         status = 'open' if abs(rates['Dolar']['buy'] - rates['Dolar e-Brou']['buy']) > Decimal('0.05') else 'closed'
         last_status = redis_get('brou:status')
 
-        notification = None
-        variation = abs(current_value - last_value)
+        real_variation = current_value_real - last_value_real
+        variation = current_value - last_value
+
+        notifications = []
         if not args.avoid_open_notification and (not last_status or last_status != status):
+            notifications.append('market_status')
+        if abs(real_variation) > args.small_delta:
+            notifications.append('real')
+        elif abs(variation) > args.small_delta and 'market_status' not in notifications:
+            notifications.append('ebrou')
+
+        res = []
+        if 'market_status' in notifications:
             # notify status change
-            notification= Notification(*[v.format(new_value=str(rates['Dolar e-Brou'][args.value_to_check]),
-                                                  old_value=str(last_value)) if v else None for v in self.messages[status]])
+            notification = Notification(*[v.format(new_value=str(current_value),
+                                                   new_value_real=str(current_value_real),
+                                                   old_value=str(last_value),
+                                                   old_value_real=str(last_value_real)) if v else None
+                                          for v in self.messages[status]])
             redis_set('brou:status', status)
-        elif args.big_delta and variation >= args.big_delta:
-            notification = Notification(title='BIG CHANGE DOWN :(', subtitle='New value: %s' % str(current_value),
-                                        sound='sad.aiff', text='Old value: %s' % str(last_value))
-            if current_value > last_value:
-                notification.title = 'BIG CHANGE UP!!! :)'
-                notification.sound = 'perere.aiff'
-        elif variation >= args.small_delta:
-            notification = Notification(title='change down :(', subtitle='New value: %s' % str(current_value),
-                                        sound='boo.aiff', text='Old value: %s' % str(last_value))
-            if current_value > last_value:
-                notification.title = 'change up!!! :)'
-                notification.sound = 'wohoo.aiff'
+            notifications.remove('market_status')
+            res.append(notification)
 
-        if notification:
+        if len(notifications):
+            notification = None
+            variation = real_variation if 'real' in notifications else variation
+
+            if args.big_delta and abs(variation) >= args.big_delta:
+                notification = Notification(title='BIG CHANGE DOWN :(', subtitle='New value: %s - %s' % (str(current_value_real), str(current_value)),
+                                            sound='sad.aiff', text='Old value: %s - %s' % (str(last_value_real), str(last_value)))
+                if variation > 0:
+                    notification.title = 'BIG CHANGE UP!!! :)'
+                    notification.sound = 'perere.aiff'
+            elif abs(variation) >= args.small_delta:
+                notification = Notification(title='change down :(', subtitle='New value: %s - %s' % (str(current_value_real), str(current_value)),
+                                            sound='boo.aiff', text='Old value: %s - %s' % (str(last_value_real), str(last_value)))
+                if variation > 0:
+                    notification.title = 'change up!!! :)'
+                    notification.sound = 'wohoo.aiff'
+
+            res.append(notification)
+
+        if len([n for n in res if n]):
             redis_set('brou:value', str(current_value))
+            redis_set('brou:value_real', str(current_value_real))
 
-        return [notification]
+        return res
 
     def get_current_rates(self):
         res = {}
