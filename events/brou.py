@@ -49,9 +49,9 @@ class BROUEventRaiser(BaseEventRaiser):
         notifications = []
         if not args.avoid_open_notification and (not last_status or last_status != status):
             notifications.append('market_status')
-        if abs(real_variation) > args.small_delta:
+        if abs(real_variation) >= args.small_delta:
             notifications.append('real')
-        elif abs(variation) > args.small_delta and 'market_status' not in notifications:
+        elif abs(variation) >= args.small_delta and 'market_status' not in notifications:
             notifications.append('ebrou')
 
         res = []
@@ -62,6 +62,9 @@ class BROUEventRaiser(BaseEventRaiser):
                                                    old_value=str(last_value),
                                                    old_value_real=str(last_value_real)) if v else None
                                           for v in self.messages[status]])
+            if len(notifications) > 1:
+                notification.sound = None
+
             redis_set('brou:status', status)
             notifications.remove('market_status')
             res.append(notification)
@@ -72,16 +75,16 @@ class BROUEventRaiser(BaseEventRaiser):
 
             if args.big_delta and abs(variation) >= args.big_delta:
                 notification = Notification(title='BIG CHANGE DOWN :(', subtitle='New value: %s - %s' % (str(current_value_real), str(current_value)),
-                                            sound='sad.aiff', text='Old value: %s - %s' % (str(last_value_real), str(last_value)))
+                                            sound='sad', text='Old value: %s - %s' % (str(last_value_real), str(last_value)))
                 if variation > 0:
                     notification.title = 'BIG CHANGE UP!!! :)'
-                    notification.sound = 'perere.aiff'
+                    notification.sound = 'perere'
             elif abs(variation) >= args.small_delta:
                 notification = Notification(title='change down :(', subtitle='New value: %s - %s' % (str(current_value_real), str(current_value)),
-                                            sound='boo.aiff', text='Old value: %s - %s' % (str(last_value_real), str(last_value)))
+                                            sound='boo', text='Old value: %s - %s' % (str(last_value_real), str(last_value)))
                 if variation > 0:
                     notification.title = 'change up!!! :)'
-                    notification.sound = 'wohoo.aiff'
+                    notification.sound = 'wohoo'
 
             res.append(notification)
 
@@ -93,7 +96,8 @@ class BROUEventRaiser(BaseEventRaiser):
 
     def get_current_rates(self):
         res = {}
-        self.driver.get('http://brou.com.uy/web/guest/institucional/cotizaciones')
+        self.driver.get('http://brou.com.uy/web/guest/home')
+        # self.driver.get('http://brou.com.uy/web/guest/institucional/cotizaciones')
         while True:
             try:
                 table = self.driver.find_element_by_xpath('//table[@title="Cotizaciones"]')
@@ -104,7 +108,7 @@ class BROUEventRaiser(BaseEventRaiser):
         for row in table.find_elements_by_xpath('.//tr'):
             cols = row.find_elements_by_xpath('.//td')
             if len(cols) > 1:
-                res[unidecode(cols[1].text)] = {
+                res[unidecode(cols[1].text).replace('\n', ' ')] = {
                     'buy': Decimal(cols[2].text) if cols[2].text else None,
                     'sell': Decimal(cols[3].text) if cols[3].text else None
                 }

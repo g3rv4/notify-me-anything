@@ -44,7 +44,7 @@ class NotificationHelper(Foundation.NSObject):
         if text:
             notification.setInformativeText_(str(text))
         if sound:
-            notification.setSoundName_(sound)
+            notification.setSoundName_("%s.aiff" % sound)
 
         notification.setHasActionButton_(False)
 
