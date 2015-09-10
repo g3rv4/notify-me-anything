@@ -28,6 +28,8 @@ class BROUEventRaiser(BaseEventRaiser):
 
     def get_notifications(self, args):
         rates = self.get_current_rates()
+        if not rates:
+            return []
 
         current_value = rates['Dolar e-Brou'][args.value_to_check]
         current_value_real = rates['Dolar'][args.value_to_check]
@@ -96,20 +98,30 @@ class BROUEventRaiser(BaseEventRaiser):
 
     def get_current_rates(self):
         res = {}
-        self.driver.get('http://brou.com.uy/web/guest/home')
-        # self.driver.get('http://brou.com.uy/web/guest/institucional/cotizaciones')
-        while True:
-            try:
-                table = self.driver.find_element_by_xpath('//table[@title="Cotizaciones"]')
-                break
-            except:
-                time.sleep(0.5)
+        urls = ['http://brou.com.uy/web/guest/home', 'http://brou.com.uy/web/guest/institucional/cotizaciones']
+        i = 0
+        while not len(res) and i < len(urls):
+            self.driver.get(urls[i % len(urls)])
+            i += 1
 
-        for row in table.find_elements_by_xpath('.//tr'):
-            cols = row.find_elements_by_xpath('.//td')
-            if len(cols) > 1:
-                res[unidecode(cols[1].text).replace('\n', ' ')] = {
-                    'buy': Decimal(cols[2].text) if cols[2].text else None,
-                    'sell': Decimal(cols[3].text) if cols[3].text else None
-                }
+            attempts = 0
+            table = None
+            while True:
+                try:
+                    table = self.driver.find_element_by_xpath('//table[@title="Cotizaciones"]')
+                    break
+                except:
+                    time.sleep(0.5)
+                    attempts += 1
+                    if len(attempts) >= 10:
+                        break
+
+            if table:
+                for row in table.find_elements_by_xpath('.//tr'):
+                    cols = row.find_elements_by_xpath('.//td')
+                    if len(cols) > 1:
+                        res[unidecode(cols[1].text).replace('\n', ' ')] = {
+                            'buy': Decimal(cols[2].text) if cols[2].text else None,
+                            'sell': Decimal(cols[3].text) if cols[3].text else None
+                        }
         return res

@@ -4,7 +4,6 @@ import requests
 import json
 from utils import redis_get, redis_set
 from notifications.base_notification import Notification
-import time
 
 
 class BitfinexEventRaiser(BaseEventRaiser):
@@ -13,14 +12,11 @@ class BitfinexEventRaiser(BaseEventRaiser):
         parser.add_argument("--big-delta", help="big difference", type=Decimal, required=False)
 
     def get_notifications(self, args):
-        while True:
-            try:
-                response = requests.get('https://api.bitfinex.com/v1/pubticker/btcusd')
-                current_value = Decimal(json.loads(response.content)['last_price'])
-                break
-            except:
-                print 'Error connecting'
-                time.sleep(2)
+        try:
+            response = requests.get('https://api.bitfinex.com/v1/pubticker/btcusd')
+            current_value = Decimal(json.loads(response.content)['last_price'])
+        except:
+            return []
 
         try:
             last_value = Decimal(redis_get('bitfinex:value'))
