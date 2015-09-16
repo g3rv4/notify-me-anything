@@ -1,4 +1,5 @@
 import argparse
+import time
 from utils import get_events_raiser, get_notification
 
 
@@ -14,9 +15,11 @@ def main():
 
     with events_raiser:
         with get_notification(args.notification) as notification_helper:
-            notifications = events_raiser.get_notifications(args)
-            if len(notifications):
-                notification_helper.notify(notifications)
+            for i in range(0, 2):
+                notifications = events_raiser.get_notifications(args)
+                if len(notifications):
+                    notification_helper.notify(notifications)
+                time.sleep(20)
 
 if __name__ == "__main__":
     main()

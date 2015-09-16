@@ -42,7 +42,7 @@ class BROUEventRaiser(BaseEventRaiser):
         except:
             last_value_real = Decimal('0')
 
-        status = 'open' if rates['Dolar e-Brou']['buy'] - rates['Dolar']['buy'] > Decimal('0.05') else 'closed'
+        status = 'open' if rates['Dolar e-Brou']['buy'] - rates['Dolar']['buy'] > Decimal('0.10') else 'closed'
         last_status = redis_get('brou:status')
 
         real_variation = current_value_real - last_value_real
@@ -87,6 +87,9 @@ class BROUEventRaiser(BaseEventRaiser):
                 if variation > 0:
                     notification.title = 'change up!!! :)'
                     notification.sound = 'wohoo'
+
+            if 'real' not in notifications:
+                notification.sound = None
 
             res.append(notification)
 
